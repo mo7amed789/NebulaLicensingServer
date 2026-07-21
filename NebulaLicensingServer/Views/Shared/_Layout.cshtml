@@ -1,0 +1,62 @@
+@inject Microsoft.AspNetCore.Antiforgery.IAntiforgery Antiforgery
+@{
+    var tokens = Antiforgery.GetAndStoreTokens(Context);
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content="@tokens.RequestToken" />
+    <title>@ViewData["Title"] - Nebula Licensing</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet" />
+    <style>
+        body { overflow: hidden; background: #f8fafc; color: #0f172a; }
+        .navbar-dashboard { background: #ffffff; border-bottom: 1px solid #e2e8f0; }
+        .navbar-dashboard .navbar-brand,
+        .navbar-dashboard .nav-link,
+        .navbar-dashboard .btn { color: #0f172a; }
+        .sidebar { height: calc(100vh - 56px); background: #ffffff; border-right: 1px solid #e2e8f0; }
+        .sidebar .nav-link { color: #334155; padding: 12px 20px; border-radius: 10px; margin: 4px 10px; }
+        .sidebar .nav-link:hover { background: #e2e8f0; color: #0f172a; }
+        .sidebar .nav-link.active { background: #dbeafe; color: #1d4ed8; font-weight: 600; }
+        .content { height: calc(100vh - 56px); overflow-y: auto; padding: 30px; }
+        .card { border: 1px solid #e2e8f0; box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04); }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dashboard">
+        <div class="container-fluid">
+            <a class="navbar-brand fw-bold" href="/Dashboard">Nebula Licensing Dashboard</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#dashboardNav" aria-controls="dashboardNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse justify-content-end" id="dashboardNav">
+            <form asp-controller="DashboardAuth" asp-action="Logout" method="post" class="d-inline ms-lg-3">
+                @Html.AntiForgeryToken()
+                <button class="btn btn-outline-secondary btn-sm" type="submit">Logout</button>
+            </form>
+            </div>
+        </div>
+    </nav>
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-12 col-md-2 sidebar p-3">
+                <nav class="nav flex-column">
+                    <a class="nav-link" href="/Dashboard"><i class="bi bi-speedometer2 me-2"></i>Dashboard</a>
+                    <a class="nav-link" href="/Dashboard"><i class="bi bi-key-fill me-2"></i>Licenses</a>
+                    <a class="nav-link" href="/AuditLogs"><i class="bi bi-clock-history me-2"></i>Audit Logs</a>
+                    <a class="nav-link" href="/Administrators"><i class="bi bi-people-fill me-2"></i>Administrators</a>
+                    <a class="nav-link disabled" href="#"><i class="bi bi-gear-fill me-2"></i>Settings</a>
+                </nav>
+            </div>
+            <div class="col-12 col-md-10 content">
+                @RenderBody()
+            </div>
+        </div>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    @await RenderSectionAsync("Scripts", required: false)
+</body>
+</html>

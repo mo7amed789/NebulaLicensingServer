@@ -1,0 +1,32 @@
+@model IReadOnlyList<NebulaLicensingServer.DTOs.Administrators.Responses.AdministratorResponse>
+@{
+    ViewData["Title"] = "Administrators";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Administrators</h1>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createAdminModal">Create Administrator</button>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body table-responsive">
+        <table class="table align-middle">
+            <thead><tr><th>User</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
+            <tbody>
+            @foreach (var admin in Model)
+            {
+                <tr>
+                    <td>@admin.Username</td>
+                    <td>@admin.Role</td>
+                    <td><span class="badge @(admin.IsDisabled ? "bg-danger" : "bg-success")">@(admin.IsDisabled ? "Disabled" : "Active")</span></td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-secondary">Reset Password</button>
+                        <button class="btn btn-sm btn-outline-warning">Disable</button>
+                        <button class="btn btn-sm btn-outline-danger">Delete</button>
+                    </td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>

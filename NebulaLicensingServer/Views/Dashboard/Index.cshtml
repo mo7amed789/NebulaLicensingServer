@@ -1,0 +1,510 @@
+@model NebulaLicensingServer.ViewModels.Dashboard.DashboardViewModel
+@{
+    ViewData["Title"] = "Dashboard";
+}
+
+<div class="d-flex flex-wrap justify-content-between align-items-center gap-3 mb-4">
+    <div>
+        <h1 class="h3 mb-1">Dashboard</h1>
+        <div class="text-body-secondary">Commercial licensing overview and administration</div>
+    </div>
+    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#generateLicenseModal">
+        <i class="bi bi-plus-circle me-1"></i>Generate License
+    </button>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-3"><div class="card shadow-sm"><div class="card-body"><div class="text-muted">Total Licenses</div><div class="display-6" id="totalLicenses">@Model.TotalLicenses</div></div></div></div>
+    <div class="col-md-3"><div class="card shadow-sm"><div class="card-body"><div class="text-muted">Active Licenses</div><div class="display-6 text-success" id="activeLicenses">@Model.ActiveLicenses</div></div></div></div>
+    <div class="col-md-3"><div class="card shadow-sm"><div class="card-body"><div class="text-muted">Expired Licenses</div><div class="display-6 text-warning" id="expiredLicenses">@Model.ExpiredLicenses</div></div></div></div>
+    <div class="col-md-3"><div class="card shadow-sm"><div class="card-body"><div class="text-muted">Revoked Licenses</div><div class="display-6 text-danger" id="revokedLicenses">@Model.RevokedLicenses</div></div></div></div>
+    <div class="col-md-3"><div class="card shadow-sm"><div class="card-body"><div class="text-muted">Today's Activations</div><div class="display-6" id="todayActivations">@Model.TodayActivations</div></div></div></div>
+    <div class="col-md-3"><div class="card shadow-sm"><div class="card-body"><div class="text-muted">Today's Validations</div><div class="display-6" id="todayValidations">@Model.TodayValidations</div></div></div></div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-lg-5">
+        <div class="card shadow-sm h-100"><div class="card-body"><h5 class="card-title">License Status</h5><canvas id="licenseChart" height="180"></canvas></div></div>
+    </div>
+    <div class="col-lg-7">
+        <div class="card shadow-sm h-100">
+            <div class="card-body">
+                <h5 class="card-title">Quick Actions</h5>
+                <div class="d-flex flex-wrap gap-2">
+                    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#generateLicenseModal">Generate License</button>
+                    <a class="btn btn-outline-secondary" href="/Dashboard?page=1&status=Activated">Active Licenses</a>
+                    <a class="btn btn-outline-secondary" href="/Dashboard?page=1&status=Expired">Expired Licenses</a>
+                    <a class="btn btn-outline-secondary" href="/Dashboard?page=1&status=Revoked">Revoked Licenses</a>
+                </div>
+                <hr />
+                <div class="small text-body-secondary">Latest licenses: <span id="latestLicensesCount">@Model.LatestLicensesCount</span> shown on this page.</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="card shadow-sm mb-4">
+    <div class="card-body">
+        <form method="get" class="row g-2 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label">Search</label>
+                <input name="search" value="@Model.Search" class="form-control" placeholder="License key, machine hash..." />
+            </div>
+            <div class="col-md-3">
+                <label class="form-label">Status</label>
+                <select name="status" class="form-select">
+                    <option value="">All</option>
+                    <option value="Generated" selected="@(Model.Status == "Generated")">Generated</option>
+                    <option value="Activated" selected="@(Model.Status == "Activated")">Activated</option>
+                    <option value="Expired" selected="@(Model.Status == "Expired")">Expired</option>
+                    <option value="Revoked" selected="@(Model.Status == "Revoked")">Revoked</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">Page Size</label>
+                <select name="pageSize" class="form-select">
+                    <option selected="@(Model.PageSize == 10)">10</option>
+                    <option selected="@(Model.PageSize == 25)">25</option>
+                    <option selected="@(Model.PageSize == 50)">50</option>
+                </select>
+            </div>
+            <div class="col-md-2 d-grid">
+                <button class="btn btn-outline-primary" type="submit">Apply</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div class="card shadow-sm">
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table align-middle table-hover">
+                <thead>
+                    <tr>
+                        <th>License</th>
+                        <th>Status</th>
+                        <th>Machine</th>
+                        <th>Expires</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="licenseTableBody">
+                    @foreach (var license in Model.Licenses)
+                    {
+                        <tr class="@(license.IsExpired ? "table-warning" : string.Empty)" data-license-row="@license.LicenseKey" data-expiration="@(license.ExpiresAt.HasValue ? license.ExpiresAt.Value.ToString("O") : string.Empty)">
+                            <td>
+                                <div class="fw-semibold">@license.LicenseKey</div>
+                                <div class="text-body-secondary small">@license.DeviceName</div>
+                            </td>
+                            <td><span class="badge js-status @(license.Status == "Activated" ? "bg-success" : license.Status == "Expired" ? "bg-warning text-dark" : license.Status == "Revoked" ? "bg-danger" : "bg-secondary")">@license.Status</span></td>
+                            <td class="text-break"><code>@license.MachineHash</code></td>
+                            <td>
+                                <span class="js-expiration @(license.IsExpired ? "text-danger fw-semibold" : string.Empty)">
+                                    @(license.ExpiresAt.HasValue ? license.ExpiresAt.Value.ToString("dd MMM yyyy") : "Pending")
+                                </span>
+                            </td>
+                            <td class="text-nowrap">
+                                <a class="btn btn-sm btn-outline-primary" href="/Dashboard/Details?id=@license.LicenseKey">View</a>
+                                <button class="btn btn-sm btn-outline-secondary js-copy" data-copy="@license.LicenseKey" type="button">Copy</button>
+                                <button class="btn btn-sm btn-outline-warning js-extend"
+                                        data-license="@license.LicenseKey"
+                                        data-expiration="@(license.ExpiresAt.HasValue ? license.ExpiresAt.Value.ToString("O") : string.Empty)"
+                                        type="button"
+                                        data-bs-toggle="modal"
+                                        data-bs-target="#extendLicenseModal"
+                                        @(license.ExpiresAt.HasValue ? "" : "disabled title='Activate first to extend'")>
+                                    Extend
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger js-revoke" data-license="@license.LicenseKey" type="button" data-bs-toggle="modal" data-bs-target="#revokeLicenseModal">Revoke</button>
+                                <button class="btn btn-sm btn-danger js-delete" data-license="@license.LicenseKey" type="button" data-bs-toggle="modal" data-bs-target="#deleteLicenseModal">Delete</button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <nav class="d-flex justify-content-between align-items-center">
+            <div class="text-body-secondary small">Showing <span id="visibleCount">@Model.Licenses.Count</span> of <span id="totalCount">@Model.TotalCount</span></div>
+            <div class="btn-group">
+                <a class="btn btn-outline-secondary @(Model.Page <= 1 ? "disabled" : string.Empty)" href="/Dashboard?page=@(Model.Page - 1)&pageSize=@Model.PageSize&search=@Model.Search&status=@Model.Status">Prev</a>
+                <a class="btn btn-outline-secondary @((Model.Page * Model.PageSize) >= Model.TotalCount ? "disabled" : string.Empty)" href="/Dashboard?page=@(Model.Page + 1)&pageSize=@Model.PageSize&search=@Model.Search&status=@Model.Status">Next</a>
+            </div>
+        </nav>
+    </div>
+</div>
+
+<div class="modal fade" id="generateLicenseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="generateLicenseForm">
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <h5 class="modal-title">Generate License</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <label class="form-label">Validity Period</label>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6">
+                            <label class="form-label text-muted small mb-1">Months</label>
+                            <select class="form-select" id="months">
+                                <option value="0">0</option>
+                                <option value="1">1</option>
+                                <option value="3">3</option>
+                                <option value="6">6</option>
+                                <option value="12" selected>12</option>
+                                <option value="24">24</option>
+                            </select>
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-muted small mb-1">Days</label>
+                            <input type="number" class="form-control" id="days" value="0" min="0" max="365" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-muted small mb-1">Hours</label>
+                            <input type="number" class="form-control" id="hours" value="0" min="0" max="23" />
+                        </div>
+                        <div class="col-6">
+                            <label class="form-label text-muted small mb-1">Minutes</label>
+                            <input type="number" class="form-control" id="minutes" value="0" min="0" max="59" />
+                        </div>
+                    </div>
+                    <label class="form-label">Notes</label>
+                    <textarea class="form-control" rows="3" id="notes"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-primary" type="submit" id="btnGenerate">Generate</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="extendLicenseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="extendLicenseForm">
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <h5 class="modal-title">Extend License</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="extendLicenseKey" />
+                    <div class="mb-2 text-body-secondary small">Current expiration: <span id="currentExpiration"></span></div>
+                    <label class="form-label">Duration</label>
+                    <select class="form-select mb-3" id="extendDuration">
+                        <option value="30">30 Days</option>
+                        <option value="90">90 Days</option>
+                        <option value="180">180 Days</option>
+                        <option value="365">1 Year</option>
+                        <option value="custom">Custom Days</option>
+                    </select>
+                    <div class="mb-3 d-none" id="customDaysGroup">
+                        <label class="form-label">Custom Days</label>
+                        <input type="number" min="1" class="form-control" id="customDays" />
+                    </div>
+                    <div class="alert alert-info mb-0">Preview new expiration: <strong id="previewExpiration">-</strong></div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-warning" type="submit">Extend</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="revokeLicenseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="revokeLicenseForm">
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <h5 class="modal-title">Revoke License</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="revokeLicenseKey" />
+                    <div class="alert alert-danger">This action is permanent and requires confirmation.</div>
+                    <label class="form-label">Reason</label>
+                    <textarea class="form-control" id="revokeReason" rows="3" placeholder="Enter revocation reason"></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-danger" type="submit">Confirm Revoke</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="deleteLicenseModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="deleteLicenseForm">
+                @Html.AntiForgeryToken()
+                <div class="modal-header">
+                    <h5 class="modal-title">Delete License</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="deleteLicenseKey" />
+                    <div class="alert alert-danger">
+                        This will permanently remove the license <strong id="deleteLicenseKeyLabel"></strong> from the database. This action cannot be undone.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" type="button" data-bs-dismiss="modal">Cancel</button>
+                    <button class="btn btn-danger" type="submit">Confirm Delete</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div class="toast-container position-fixed top-0 end-0 p-3" id="toastContainer"></div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+    <script>
+        const labels = @Html.Raw(Model.ChartLabelsJson);
+        const data = @Html.Raw(Model.ChartDataJson);
+        const chart = new Chart(document.getElementById("licenseChart"), {
+            type: "doughnut",
+            data: { labels, datasets: [{ data, backgroundColor: ["#198754", "#ffc107", "#dc3545"] }] },
+            options: { plugins: { legend: { position: "bottom" } } }
+        });
+
+        const toastContainer = document.getElementById("toastContainer");
+        function toast(message, variant) {
+            const el = document.createElement("div");
+            el.className = `toast align-items-center text-bg-${variant} border-0`;
+            el.role = "alert";
+            el.innerHTML = `<div class="d-flex"><div class="toast-body">${message}</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button></div>`;
+            toastContainer.appendChild(el);
+            new bootstrap.Toast(el, { delay: 2500 }).show();
+        }
+
+        function statusBadgeClass(status) {
+            return status === "Activated" ? "bg-success" : status === "Expired" ? "bg-warning text-dark" : status === "Revoked" ? "bg-danger" : "bg-secondary";
+        }
+
+        function wireRowActions() {
+            document.querySelectorAll(".js-copy").forEach(button => button.addEventListener("click", async () => {
+                await navigator.clipboard.writeText(button.dataset.copy);
+                toast("License key copied.", "success");
+            }));
+
+            document.querySelectorAll(".js-extend").forEach(button => button.addEventListener("click", () => {
+                document.getElementById("extendLicenseKey").value = button.dataset.license;
+                document.getElementById("currentExpiration").dataset.iso = button.dataset.expiration;
+                document.getElementById("currentExpiration").textContent = button.dataset.expiration ? new Date(button.dataset.expiration).toLocaleString() : "N/A";
+                document.getElementById("extendDuration").value = "30";
+                document.getElementById("customDaysGroup").classList.add("d-none");
+                updatePreview();
+            }));
+
+            document.querySelectorAll(".js-revoke").forEach(button => button.addEventListener("click", () => {
+                document.getElementById("revokeLicenseKey").value = button.dataset.license;
+                document.getElementById("revokeReason").value = "";
+            }));
+
+            document.querySelectorAll(".js-delete").forEach(button => button.addEventListener("click", () => {
+                document.getElementById("deleteLicenseKey").value = button.dataset.license;
+                document.getElementById("deleteLicenseKeyLabel").textContent = button.dataset.license;
+            }));
+        }
+
+        function getExtendDays() {
+            const value = document.getElementById("extendDuration").value;
+            return value === "custom" ? parseInt(document.getElementById("customDays").value || "0", 10) : parseInt(value, 10);
+        }
+
+        function updatePreview() {
+            const currentExpirationStr = document.getElementById("currentExpiration").dataset.iso;
+            if (!currentExpirationStr) {
+                document.getElementById("previewExpiration").textContent = "-";
+                return;
+            }
+
+            const currentExpiration = new Date(currentExpirationStr);
+            const days = getExtendDays();
+            if (!days || Number.isNaN(currentExpiration.getTime())) {
+                document.getElementById("previewExpiration").textContent = "-";
+                return;
+            }
+
+            const preview = new Date(currentExpiration.getTime());
+            preview.setDate(preview.getDate() + days);
+            document.getElementById("previewExpiration").textContent = preview.toLocaleString();
+        }
+
+        function renderRows(licenses) {
+            const tbody = document.getElementById("licenseTableBody");
+            tbody.innerHTML = licenses.map(license => {
+                const machineHash = license.machineHash ?? "";
+                const deviceName = license.deviceName ?? "";
+                const expirationText = license.expiresAt ? new Date(license.expiresAt).toLocaleDateString() : "Pending";
+                const expirationClass = license.isExpired ? "text-danger fw-semibold" : "";
+                const rowClass = license.isExpired ? "table-warning" : "";
+                const expirationValue = license.expiresAt ?? "";
+
+                return `<tr class="${rowClass}" data-license-row="${license.licenseKey}" data-expiration="${expirationValue}">
+                    <td>
+                        <div class="fw-semibold">${license.licenseKey}</div>
+                        <div class="text-body-secondary small">${deviceName}</div>
+                    </td>
+                    <td><span class="badge js-status ${statusBadgeClass(license.status)}">${license.status}</span></td>
+                    <td class="text-break"><code>${machineHash}</code></td>
+                    <td><span class="js-expiration ${expirationClass}">${expirationText}</span></td>
+                    <td class="text-nowrap">
+                        <a class="btn btn-sm btn-outline-primary" href="/Dashboard/Details?id=${encodeURIComponent(license.licenseKey)}">View</a>
+                        <button class="btn btn-sm btn-outline-secondary js-copy" data-copy="${license.licenseKey}" type="button">Copy</button>
+                        <button class="btn btn-sm btn-outline-warning js-extend" data-license="${license.licenseKey}" data-expiration="${expirationValue}" type="button" data-bs-toggle="modal" data-bs-target="#extendLicenseModal" ${expirationValue ? "" : "disabled title='Activate first to extend'"}>Extend</button>
+                        <button class="btn btn-sm btn-outline-danger js-revoke" data-license="${license.licenseKey}" type="button" data-bs-toggle="modal" data-bs-target="#revokeLicenseModal">Revoke</button>
+                        <button class="btn btn-sm btn-danger js-delete" data-license="${license.licenseKey}" type="button" data-bs-toggle="modal" data-bs-target="#deleteLicenseModal">Delete</button>
+                    </td>
+                </tr>`;
+            }).join("");
+
+            wireRowActions();
+        }
+
+        document.getElementById("extendDuration").addEventListener("change", () => {
+            document.getElementById("customDaysGroup").classList.toggle("d-none", document.getElementById("extendDuration").value !== "custom");
+            updatePreview();
+        });
+
+        document.getElementById("customDays").addEventListener("input", updatePreview);
+
+        document.getElementById("generateLicenseForm").addEventListener("submit", async event => {
+            event.preventDefault();
+            const token = document.querySelector('#generateLicenseForm input[name="__RequestVerificationToken"]').value;
+
+            const months = document.getElementById("months").value || "0";
+            const days = document.getElementById("days").value || "0";
+            const hours = document.getElementById("hours").value || "0";
+            const minutes = document.getElementById("minutes").value || "0";
+            const notes = document.getElementById("notes").value;
+
+            const bodyPayload = `months=${encodeURIComponent(months)}&days=${encodeURIComponent(days)}&hours=${encodeURIComponent(hours)}&minutes=${encodeURIComponent(minutes)}&notes=${encodeURIComponent(notes)}`;
+            const response = await fetch("/Dashboard/Generate", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded", "X-CSRF-TOKEN": token },
+                body: bodyPayload
+            });
+
+            const payload = await response.json();
+            if (!payload.success) {
+                toast(payload.message ?? "Generation failed.", "danger");
+                return;
+            }
+
+            toast(`Generated ${payload.licenseKey}`, "success");
+            bootstrap.Modal.getInstance(document.getElementById("generateLicenseModal"))?.hide();
+            await refreshDashboard();
+        });
+
+        document.getElementById("extendLicenseForm").addEventListener("submit", async event => {
+            event.preventDefault();
+            const days = getExtendDays();
+            const licenseKey = document.getElementById("extendLicenseKey").value;
+            const token = document.querySelector('#extendLicenseForm input[name="__RequestVerificationToken"]').value;
+            const response = await fetch("/Dashboard/Extend", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded", "X-CSRF-TOKEN": token },
+                body: `licenseKey=${encodeURIComponent(licenseKey)}&days=${encodeURIComponent(days)}`
+            });
+
+            const payload = await response.json();
+            if (!payload.success) {
+                toast(payload.message ?? "Extension failed.", "danger");
+                return;
+            }
+
+            toast("License extended.", "success");
+            bootstrap.Modal.getInstance(document.getElementById("extendLicenseModal"))?.hide();
+            await refreshDashboard();
+        });
+
+        document.getElementById("revokeLicenseForm").addEventListener("submit", async event => {
+            event.preventDefault();
+            const token = document.querySelector('#revokeLicenseForm input[name="__RequestVerificationToken"]').value;
+            const response = await fetch("/Dashboard/Revoke", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded", "X-CSRF-TOKEN": token },
+                body: `licenseKey=${encodeURIComponent(document.getElementById("revokeLicenseKey").value)}&reason=${encodeURIComponent(document.getElementById("revokeReason").value)}`
+            });
+
+            const payload = await response.json();
+            if (!payload.success) {
+                toast(payload.message ?? "Revocation failed.", "danger");
+                return;
+            }
+
+            toast("License revoked.", "success");
+            bootstrap.Modal.getInstance(document.getElementById("revokeLicenseModal"))?.hide();
+            await refreshDashboard();
+        });
+
+        document.getElementById("deleteLicenseForm").addEventListener("submit", async event => {
+            event.preventDefault();
+            const token = document.querySelector('#deleteLicenseForm input[name="__RequestVerificationToken"]').value;
+            const licenseKey = document.getElementById("deleteLicenseKey").value;
+            const response = await fetch("/Dashboard/Delete", {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded", "X-CSRF-TOKEN": token },
+                body: `licenseKey=${encodeURIComponent(licenseKey)}`
+            });
+
+            const payload = await response.json();
+            if (!payload.success) {
+                toast(payload.message ?? "Deletion failed.", "danger");
+                return;
+            }
+
+            toast("License deleted.", "success");
+            bootstrap.Modal.getInstance(document.getElementById("deleteLicenseModal"))?.hide();
+            await refreshDashboard();
+        });
+
+        async function refreshDashboard() {
+            try {
+                const url = new URL("/Dashboard/Snapshot", window.location.origin);
+                const query = new URLSearchParams(window.location.search);
+                ["search", "status", "page", "pageSize"].forEach(key => {
+                    const value = query.get(key);
+                    if (value) {
+                        url.searchParams.set(key, value);
+                    }
+                });
+
+                const response = await fetch(url, { headers: { "Accept": "application/json" } });
+                const payload = await response.json();
+                if (!payload.success) {
+                    return;
+                }
+
+                document.getElementById("totalLicenses").textContent = payload.totalLicenses;
+                document.getElementById("activeLicenses").textContent = payload.activeLicenses;
+                document.getElementById("expiredLicenses").textContent = payload.expiredLicenses;
+                document.getElementById("revokedLicenses").textContent = payload.revokedLicenses;
+                document.getElementById("todayActivations").textContent = payload.todayActivations;
+                document.getElementById("todayValidations").textContent = payload.todayValidations;
+                document.getElementById("visibleCount").textContent = payload.licenses.length;
+                document.getElementById("totalCount").textContent = payload.totalCount;
+                document.getElementById("latestLicensesCount").textContent = payload.licenses.length;
+                chart.data.datasets[0].data = [payload.activeLicenses, payload.expiredLicenses, payload.revokedLicenses];
+                chart.update();
+                renderRows(payload.licenses);
+            } catch {
+            }
+        }
+
+        wireRowActions();
+        setInterval(refreshDashboard, 5000);
+    </script>
+}
